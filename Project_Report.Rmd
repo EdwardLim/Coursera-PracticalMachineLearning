@@ -1,0 +1,163 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Edward Lim"
+date: "Monday, May 18, 2015"
+output: html_document
+---
+
+# Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# Data Sources
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+For this project, the above data files have been downloaded to the same directory.
+
+# Load the required libraries
+```{r}
+library(caret)
+
+library(ggplot2)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+
+```
+
+
+# Data Processing
+```{r}
+# Read the data from the CSV files.
+trainOrig <- read.csv("pml-training.csv")
+testOrig <- read.csv("pml-testing.csv")
+
+# Remove all columns that have NA values.
+trainClean1 <- trainOrig[, colSums(is.na(testOrig)) == 0] 
+testClean1 <- testOrig[, colSums(is.na(testOrig)) == 0]
+
+# Store the classe column for later use.
+classe <- trainOrig$classe
+
+# Remove columns that contain the strings "timestamp" or "window"
+fields_to_remove <- grepl("^X|timestamp|window", names(trainClean1))
+trainClean2 <- trainClean1[, !fields_to_remove]
+testClean2 <- testClean1[, !fields_to_remove]
+
+# Retain columns that are numeric.
+trainClean3 <- trainClean2[, sapply(trainClean2, is.numeric)]
+testClean3 <- testClean2[, sapply(testClean2, is.numeric)]
+
+# Finally, we put the classe column back to the clean training data.
+trainClean <- trainClean3
+trainClean$classe <- classe
+
+testClean <- testClean3
+```
+
+The trainClean and testClean data have the following rows and columns:
+```{r}
+dim(trainClean)
+dim(testClean)
+
+```
+
+# Split Data
+We split the trainClean into 60% training data (trainData) and 40% cross-validation data (cvData)
+```{r}
+set.seed(10000) # For reproducibility
+inTrain <- createDataPartition(trainClean$classe, p=0.60, list=FALSE)
+trainData <- trainClean[inTrain, ]
+cvData <- trainClean[-inTrain, ]
+
+```
+# Train and Validate Model: Decision Trees
+We will use Decision Tree to train the model.
+```{r}
+dtModel <- rpart(classe ~ ., data=trainData, method="class")
+
+```
+
+View the decision tree.
+```{r}
+fancyRpartPlot(dtModel)
+
+# Fast plot
+prp(dtModel)
+
+```
+
+We will use the cross-validation data to check the accuracy and out-of-sample error of the model.
+```{r}
+dtPredictions <- predict(dtModel, cvData, type="class")
+
+confusionMatrix(cvData$classe, dtPredictions)
+
+accuracy <- postResample(dtPredictions, cvData$classe)
+accuracy
+outOfSampleError <- 1 - as.numeric(confusionMatrix(cvData$classe, dtPredictions)$overall[1])
+outOfSampleError
+
+```
+
+From the above statistics, Decision Tree does not have good accuracy and out-of-sample error.
+
+# Train and Validate Model: Random Forests
+We will use 5-fold cross-validation and Random Forests to train the model.
+```{r}
+library(randomForest)
+rfControl <- trainControl(method="cv", 5)  # 5-fold cross-validation
+rfModel <- train(classe ~ ., data=trainData, method="rf", trControl=rfControl, ntree=100) # Random forest
+rfModel
+
+```
+
+We will use the cross-validation data to check the accuracy and out-of-sample error of the model.
+```{r}
+rfPredictions <- predict(rfModel, cvData)
+
+confusionMatrix(cvData$classe, rfPredictions)
+
+accuracy <- postResample(rfPredictions, cvData$classe)
+accuracy
+outOfSampleError <- 1 - as.numeric(confusionMatrix(cvData$classe, rfPredictions)$overall[1])
+outOfSampleError
+
+```
+
+From the above statistics, Random Forest has a much better accuracy and lower out-of-sample error.
+
+# Prediction Using the Random Forest model on the Test Data
+We will apply the model to the original test data set (testClean) after we remove the problem_id column.
+
+```{r}
+result <- predict(rfModel, testClean[, -length(names(testClean))])
+result
+
+```
+
+# Generating Files to Submit to Coursera
+```{r}
+path <- "./testPredictions"
+
+pml_write_files <- function(x){
+      n = length(x)
+      for(i in 1:n){
+            filename = paste0("problem_id_",i,".txt")
+            write.table(x[i], file=file.path(path, filename), quote=FALSE, row.names=FALSE, col.names=FALSE)
+            }
+}
+
+pml_write_files(result)
+
+```
