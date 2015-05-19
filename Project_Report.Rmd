@@ -24,15 +24,11 @@ The data for this project come from this source: http://groupware.les.inf.puc-ri
 For this project, the above data files have been downloaded to the same directory.
 
 # Load the required libraries
-```{r}
+```{r load-libraries}
 library(caret)
-
-library(ggplot2)
 library(rpart)
 library(rpart.plot)
-library(RColorBrewer)
-library(rattle)
-
+library(ggplot2)
 ```
 
 
@@ -83,16 +79,13 @@ cvData <- trainClean[-inTrain, ]
 ```
 # Train and Validate Model: Decision Trees
 We will use Decision Tree to train the model.
-```{r}
+```{r train_decision_tree}
 dtModel <- rpart(classe ~ ., data=trainData, method="class")
 
 ```
 
 View the decision tree.
-```{r}
-fancyRpartPlot(dtModel)
-
-# Fast plot
+```{r view_decision_tree}
 prp(dtModel)
 
 ```
@@ -114,7 +107,7 @@ From the above statistics, Decision Tree does not have good accuracy and out-of-
 
 # Train and Validate Model: Random Forests
 We will use 5-fold cross-validation and Random Forests to train the model.
-```{r}
+```{r train_random_forest}
 library(randomForest)
 rfControl <- trainControl(method="cv", 5)  # 5-fold cross-validation
 rfModel <- train(classe ~ ., data=trainData, method="rf", trControl=rfControl, ntree=100) # Random forest
@@ -142,7 +135,7 @@ We will apply the model to the original test data set (testClean) after we remov
 
 ```{r}
 result <- predict(rfModel, testClean[, -length(names(testClean))])
-result
+result  # Perhaps I should suppress the printing of result.
 
 ```
 
